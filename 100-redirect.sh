@@ -14,18 +14,54 @@
 [ "$type" = "ip6tables" ] && exit 0
 [ "$table" != "mangle" ] && [ "$table" != "nat" ] && exit 0
 
+set -eu
+
 ip4t() {
-	if ! iptables -C "$@" &>/dev/null; then
-		 iptables -A "$@" || exit 0
-	fi
+  if ! iptables -C "$@" &>/dev/null; then
+    iptables -A "$@" || exit 0
+  fi
 }
 
-local_ip=$(ip addr | grep br0 | grep 'inet' | awk '{print $2}' | grep -Eo '[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}.[0-9]{1,3}')
+local_ip=$(ip addr | grep br0 | grep 'inet' | awk '{print $2}' | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
 
-for protocol in udp tcp; do
-	if [ -z "$(iptables-save 2>/dev/null | grep "$protocol --dport 53 -j DNAT")" ]; then
-	iptables -I PREROUTING -w -t nat -p "$protocol" --dport 53 -j DNAT --to "$local_ip"; fi
-done
+# -------- DNS health-check & DNAT control --------
+dns_ready() {
+  # 1) dnsmasq must be running
+  if ! pidof dnsmasq >/dev/null 2>&1; then
+    return 1
+  fi
+  # 2) Try quick resolve via local dnsmasq (2s timeout)
+  if command -v dig >/dev/null 2>&1; then
+    dig +time=2 +tries=1 +short google.com @127.0.0.1 -p 53 | grep -Eo '^[0-9]+' >/dev/null 2>&1 && return 0
+  fi
+  if command -v nslookup >/dev/null 2>&1; then
+    nslookup -timeout=2 google.com 127.0.0.1 >/dev/null 2>&1 && return 0
+  fi
+  return 1
+}
+
+ensure_dns_dnat() {
+  # Add DNAT 53 only on LAN bridge (br0) when DNS is ready
+  if dns_ready; then
+    for protocol in udp tcp; do
+      if [ -z "$(iptables-save 2>/dev/null | grep "-A PREROUTING -i br0 -p $protocol -m $protocol --dport 53 -j DNAT --to-destination $local_ip")" ]; then
+        iptables -I PREROUTING -w -t nat -i br0 -p "$protocol" --dport 53 -j DNAT --to "$local_ip"
+      fi
+    done
+  else
+    # DNS is not ready → remove DNAT to avoid total outage
+    for protocol in udp tcp; do
+      while iptables -C PREROUTING -t nat -i br0 -p "$protocol" --dport 53 -j DNAT --to "$local_ip" >/dev/null 2>&1; do
+        iptables -D PREROUTING -w -t nat -i br0 -p "$protocol" --dport 53 -j DNAT --to "$local_ip" || true
+      done
+      while iptables -C PREROUTING -t nat -p "$protocol" --dport 53 -j DNAT --to "$local_ip" >/dev/null 2>&1; do
+        iptables -D PREROUTING -w -t nat -p "$protocol" --dport 53 -j DNAT --to "$local_ip" || true
+      done
+    done
+  fi
+}
+
+ensure_dns_dnat
 
 
 #if [ -z "$(iptables-save 2>/dev/null | grep "--dport 53 -j DNAT")" ]; then
@@ -47,11 +83,11 @@ done
 
 
 if [ -z "$(iptables-save 2>/dev/null | grep unblocksh)" ]; then
-	ipset create unblocksh hash:net -exist 2>/dev/null
+    ipset create unblocksh hash:net -exist 2>/dev/null
 
-	# достаточно таких правил, для работы на всех интерфейсах (br0, br1, sstp0, sstp2, etc)
-	iptables -I PREROUTING -w -t nat -p tcp -m set --match-set unblocksh dst -j REDIRECT --to-port 1082
-	iptables -I PREROUTING -w -t nat -p udp -m set --match-set unblocksh dst -j REDIRECT --to-port 1082
+    # Ограничиваем правила пользовательским мостом br0
+    iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocksh dst -j REDIRECT --to-port 1082
+    iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblocksh dst -j REDIRECT --to-port 1082
 
 	# если у вас другой конфиг dnsmasq, и вы слушаете только определенный ip, раскоментируйте следующие строки, поставьте свой ip
 	#iptables -I PREROUTING -w -t nat -p tcp -m set --match-set unblocksh dst --dport 53 -j DNAT --to 192.168.1.1
@@ -76,8 +112,8 @@ fi
 
 if [ -z "$(iptables-save 2>/dev/null | grep unblocktor)" ]; then
   ipset create unblocktor hash:net -exist 2>/dev/null
-	iptables -I PREROUTING -w -t nat -p tcp -m set --match-set unblocktor dst -j REDIRECT --to-port 9141
-	iptables -I PREROUTING -w -t nat -p udp -m set --match-set unblocktor dst -j REDIRECT --to-port 9141
+	iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocktor dst -j REDIRECT --to-port 9141
+	iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblocktor dst -j REDIRECT --to-port 9141
 	#iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocktor dst -j REDIRECT --to-port 9141
 	#iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblocktor dst -j REDIRECT --to-port 9141
 	#iptables -A PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocktor dst -j REDIRECT --to-port 9141
@@ -90,8 +126,8 @@ fi
 
 if [ -z "$(iptables-save 2>/dev/null | grep unblockvmess)" ]; then
   ipset create unblockvmess hash:net -exist 2>/dev/null
-	iptables -I PREROUTING -w -t nat -p tcp -m set --match-set unblockvmess dst -j REDIRECT --to-port 10810
-	iptables -I PREROUTING -w -t nat -p udp -m set --match-set unblockvmess dst -j REDIRECT --to-port 10810
+	iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblockvmess dst -j REDIRECT --to-port 10810
+	iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblockvmess dst -j REDIRECT --to-port 10810
 
 	#iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblockvmess dst -j REDIRECT --to-port 10810
 	#iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblockvmess dst -j REDIRECT --to-port 10810
@@ -105,8 +141,8 @@ fi
 
 if [ -z "$(iptables-save 2>/dev/null | grep unblocktroj)" ]; then
   ipset create unblocktroj hash:net -exist 2>/dev/null
-	iptables -I PREROUTING -w -t nat -p tcp -m set --match-set unblocktroj dst -j REDIRECT --to-port 10829
-	iptables -I PREROUTING -w -t nat -p udp -m set --match-set unblocktroj dst -j REDIRECT --to-port 10829
+	iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocktroj dst -j REDIRECT --to-port 10829
+	iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblocktroj dst -j REDIRECT --to-port 10829
 
 	#iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocktroj dst -j REDIRECT --to-port 10829
 	#iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblocktroj dst -j REDIRECT --to-port 10829

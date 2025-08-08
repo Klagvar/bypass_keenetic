@@ -447,27 +447,11 @@ def bot_message(message):
                 return
 
             if message.text == '♻️ Установка & переустановка':
-                markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-                item1 = types.KeyboardButton("Оригинальная версия")
-                item2 = types.KeyboardButton("Fork by NetworK")
-                back = types.KeyboardButton("🔙 Назад")
-                markup.row(item1, item2)
-                markup.row(back)
-                bot.send_message(message.chat.id, 'Выберите репозиторий', reply_markup=markup)
-                return
-
-            if message.text == "Оригинальная версия" or message.text == "Fork by NetworK":
-                if message.text == "Оригинальная версия":
-                    repo = "tas-unn"
-                else:
-                    repo = "ziwork"
-
-                # os.system("curl -s -o /opt/root/script.sh https://raw.githubusercontent.com/ziwork/bypass_keenetic/main/script.sh")
-                url = "https://raw.githubusercontent.com/{0}/bypass_keenetic/main/script.sh".format(repo)
+                bot.send_message(message.chat.id, '🔄 Начинаю установку (репозиторий: Klagvar/bypass_keenetic)...', reply_markup=main)
+                url = "https://raw.githubusercontent.com/Klagvar/bypass_keenetic/main/script.sh"
                 os.system("curl -s -o /opt/root/script.sh " + url + "")
                 os.chmod(r"/opt/root/script.sh", 0o0755)
                 os.chmod('/opt/root/script.sh', stat.S_IRWXU)
-                #os.system("sed -i 's/ziwork/" + repo + "/g' /opt/root/script.sh")
 
                 install = subprocess.Popen(['/opt/root/script.sh', '-install'], stdout=subprocess.PIPE)
                 for line in install.stdout:
@@ -488,11 +472,12 @@ def bot_message(message):
                                  reply_markup=main)
 
                 subprocess.call(["/opt/bin/unblock_update.sh"])
-                # os.system('/opt/bin/unblock_update.sh')
                 return
 
+            # Убрали выбор репозитория, установка всегда из Klagvar
+
             if message.text == '⚠️ Удаление':
-                os.system("curl -s -o /opt/root/script.sh https://raw.githubusercontent.com/ziwork/bypass_keenetic/main/script.sh")
+                os.system("curl -s -o /opt/root/script.sh https://raw.githubusercontent.com/Klagvar/bypass_keenetic/main/script.sh")
                 os.chmod(r"/opt/root/script.sh", 0o0755)
                 os.chmod('/opt/root/script.sh', stat.S_IRWXU)
 

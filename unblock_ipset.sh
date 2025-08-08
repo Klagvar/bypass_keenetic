@@ -1,4 +1,5 @@
 #!/bin/sh
+set -eu
 
 # 2023. Keenetic DNS bot /  Проект: bypass_keenetic / Автор: tas_unn
 # GitHub: https://github.com/tas-unn/bypass_keenetic
@@ -12,7 +13,30 @@ cut_local() {
 	grep -vE 'localhost|^0\.|^127\.|^10\.|^172\.16\.|^192\.168\.|^::|^fc..:|^fd..:|^fe..:'
 }
 
-until ADDRS=$(dig +short google.com @localhost -p 40500) && [ -n "$ADDRS" ] > /dev/null 2>&1; do sleep 5; done
+# Ждём готовности локального DNS (dnsmasq). Если dig отсутствует, пробуем nslookup
+until (
+  (command -v dig >/dev/null 2>&1 && ADDRS=$(dig +time=2 +tries=1 +short google.com @127.0.0.1 -p 53) && [ -n "$ADDRS" ]) \
+  || (command -v nslookup >/dev/null 2>&1 && nslookup -timeout=2 google.com 127.0.0.1 >/dev/null 2>&1)
+); do sleep 3; done
+
+# Atomic ipset rebuild helpers
+prepare_tmp_set() {
+  base_set="$1"
+  tmp_set="${base_set}_new"
+  ipset create "$tmp_set" hash:net -exist
+}
+
+add_to_set() {
+  setname="$1"
+  value="$2"
+  ipset -exist add "$setname" "$value"
+}
+
+# Ensure base sets exist and prepare temporary ones
+for s in unblocksh unblocktor unblockvmess unblocktroj; do
+  ipset create "$s" hash:net -exist
+  prepare_tmp_set "$s"
+done
 
 while read -r line || [ -n "$line" ]; do
 
@@ -22,25 +46,25 @@ while read -r line || [ -n "$line" ]; do
   cidr=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}' | cut_local)
 
   if [ -n "$cidr" ]; then
-    ipset -exist add unblocksh "$cidr"
+    add_to_set unblocksh_new "$cidr"
     continue
   fi
 
   range=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut_local)
 
   if [ -n "$range" ]; then
-    ipset -exist add unblocksh "$range"
+    add_to_set unblocksh_new "$range"
     continue
   fi
 
   addr=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut_local)
 
   if [ -n "$addr" ]; then
-    ipset -exist add unblocksh "$addr"
+    add_to_set unblocksh_new "$addr"
     continue
   fi
 
-  dig +short "$line" @localhost -p 40500 | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk '{system("ipset -exist add unblocksh "$1)}'
+dig +short "$line" @127.0.0.1 -p 53 2>/dev/null | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk '{system("ipset -exist add unblocksh_new "$1)}'
 
 done < /opt/etc/unblock/shadowsocks.txt
 
@@ -53,25 +77,25 @@ while read -r line || [ -n "$line" ]; do
   cidr=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}' | cut_local)
 
   if [ -n "$cidr" ]; then
-    ipset -exist add unblocktor "$cidr"
+    add_to_set unblocktor_new "$cidr"
     continue
   fi
 
   range=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut_local)
 
   if [ -n "$range" ]; then
-    ipset -exist add unblocktor "$range"
+    add_to_set unblocktor_new "$range"
     continue
   fi
 
   addr=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut_local)
 
   if [ -n "$addr" ]; then
-    ipset -exist add unblocktor "$addr"
+    add_to_set unblocktor_new "$addr"
     continue
   fi
 
-  dig +short "$line" @localhost -p 40500 | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk '{system("ipset -exist add unblocktor "$1)}'
+dig +short "$line" @127.0.0.1 -p 53 2>/dev/null | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk '{system("ipset -exist add unblocktor_new "$1)}'
 
 done < /opt/etc/unblock/tor.txt
 
@@ -84,25 +108,25 @@ while read -r line || [ -n "$line" ]; do
   cidr=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}' | cut_local)
 
   if [ -n "$cidr" ]; then
-    ipset -exist add unblockvmess "$cidr"
+    add_to_set unblockvmess_new "$cidr"
     continue
   fi
 
   range=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut_local)
 
   if [ -n "$range" ]; then
-    ipset -exist add unblockvmess "$range"
+    add_to_set unblockvmess_new "$range"
     continue
   fi
 
   addr=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut_local)
 
   if [ -n "$addr" ]; then
-    ipset -exist add unblockvmess "$addr"
+    add_to_set unblockvmess_new "$addr"
     continue
   fi
 
-  dig +short "$line" @localhost -p 40500 | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk '{system("ipset -exist add unblockvmess "$1)}'
+dig +short "$line" @127.0.0.1 -p 53 2>/dev/null | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk '{system("ipset -exist add unblockvmess_new "$1)}'
 
 done < /opt/etc/unblock/vmess.txt
 
@@ -129,11 +153,11 @@ while read -r line || [ -n "$line" ]; do
   addr=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut_local)
 
   if [ -n "$addr" ]; then
-    ipset -exist add unblocktroj "$addr"
+    add_to_set unblocktroj_new "$addr"
     continue
   fi
 
-  dig +short "$line" @localhost -p 40500 | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk '{system("ipset -exist add unblocktroj "$1)}'
+dig +short "$line" @127.0.0.1 -p 53 2>/dev/null | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk '{system("ipset -exist add unblocktroj_new "$1)}'
 
 done < /opt/etc/unblock/trojan.txt
 
@@ -164,10 +188,16 @@ cat "$vpn_file_names" | while read -r line || [ -n "$line" ]; do
     continue
   fi
 
-  dig +short "$line" @localhost -p 40500 | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk -v unblockvpn="$unblockvpn" '{system("ipset -exist add " unblockvpn " " $1)}'
+  dig +short "$line" @127.0.0.1 -p 53 2>/dev/null | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk -v unblockvpn="$unblockvpn" '{system("ipset -exist add " unblockvpn " " $1)}'
 done
 done
 fi
+
+# Atomically swap base sets to newly built ones
+for s in unblocksh unblocktor unblockvmess unblocktroj; do
+  ipset swap "$s" "${s}_new" 2>/dev/null || true
+  ipset destroy "${s}_new" 2>/dev/null || true
+done
 
 # unblockvpn - множество
 # vpn1.txt - название файла со списком обхода

@@ -10,7 +10,7 @@
 
 # оригинальный репозиторий (tas-unn), FORK by NetworK (ziwork)
 
-repo="ziwork"
+repo="Klagvar"
 
 # ip роутера
 lanip=$(ip addr show br0 | grep -Po "(?<=inet ).*(?=/)" | awk '{print $1}')
@@ -20,8 +20,13 @@ localportsh=$(grep "localportsh" /opt/etc/bot_config.py | grep -Eo "[0-9]{1,5}")
 localporttor=$(grep "localporttor" /opt/etc/bot_config.py | grep -Eo "[0-9]{1,5}")
 localportvmess=$(grep "localportvmess" /opt/etc/bot_config.py | grep -Eo "[0-9]{1,5}")
 localporttrojan=$(grep "localporttrojan" /opt/etc/bot_config.py | grep -Eo "[0-9]{1,5}")
-dnsovertlsport=$(grep "dnsovertlsport" /opt/etc/bot_config.py | grep -Eo "[0-9]{1,5}")
-dnsoverhttpsport=$(grep "dnsoverhttpsport" /opt/etc/bot_config.py | grep -Eo "[0-9]{1,5}")
+# Если доступен статус ndnproxy, подхватываем актуальные порты DoT/DoH, иначе читаем из конфига
+if [ -f /tmp/ndnproxymain.stat ]; then
+  dnsovertlsport=$(grep -Eo 'DoTPort: [0-9]+' /tmp/ndnproxymain.stat | awk '{print $2}')
+  dnsoverhttpsport=$(grep -Eo 'DoHPort: [0-9]+' /tmp/ndnproxymain.stat | awk '{print $2}')
+fi
+dnsovertlsport=${dnsovertlsport:-$(grep "dnsovertlsport" /opt/etc/bot_config.py | grep -Eo "[0-9]{1,5}")}
+dnsoverhttpsport=${dnsoverhttpsport:-$(grep "dnsoverhttpsport" /opt/etc/bot_config.py | grep -Eo "[0-9]{1,5}")}
 keen_os_full=$(curl -s localhost:79/rci/show/version/title | tr -d \",)
 keen_os_short=$(curl -s localhost:79/rci/show/version/title | tr -d \", | cut -b 1)
 
@@ -158,14 +163,14 @@ if [ "$1" = "-install" ]; then
     # chmod 777 /opt/bin/unblock_ipset.sh || rm -rfv /opt/bin/unblock_ipset.sh
     curl -o /opt/bin/unblock_ipset.sh https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/unblock_ipset.sh
     chmod 755 /opt/bin/unblock_ipset.sh || chmod +x /opt/bin/unblock_ipset.sh
-    sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_ipset.sh
+    sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_ipset.sh || true
     echo "Установлен скрипт для заполнения множеств unblock IP-адресами заданного списка доменов"
 
     # unblock_dnsmasq.sh
     # chmod 777 /opt/bin/unblock_dnsmasq.sh || rm -rfv /opt/bin/unblock_dnsmasq.sh
     curl -o /opt/bin/unblock_dnsmasq.sh https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/unblock.dnsmasq
     chmod 755 /opt/bin/unblock_dnsmasq.sh || chmod +x /opt/bin/unblock_dnsmasq.sh
-    sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_dnsmasq.sh
+    sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_dnsmasq.sh || true
     /opt/bin/unblock_dnsmasq.sh
     echo "Установлен скрипт для формирования дополнительного конфигурационного файла dnsmasq из заданного списка доменов и его запуск"
 
@@ -215,8 +220,8 @@ if [ "$1" = "-install" ]; then
     curl -o /opt/etc/dnsmasq.conf https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/dnsmasq.conf
     chmod 755 /opt/etc/dnsmasq.conf
     sed -i "s/192.168.1.1/${lanip}/g" /opt/etc/dnsmasq.conf
-    sed -i "s/40500/${dnsovertlsport}/g" /opt/etc/dnsmasq.conf
-    sed -i "s/40508/${dnsoverhttpsport}/g" /opt/etc/dnsmasq.conf
+    sed -i "s/40500/${dnsovertlsport}/g" /opt/etc/dnsmasq.conf || true
+    sed -i "s/40508/${dnsoverhttpsport}/g" /opt/etc/dnsmasq.conf || true
     echo "Установлена настройка dnsmasq и подключение дополнительного конфигурационного файла к dnsmasq"
 
     # cron file
