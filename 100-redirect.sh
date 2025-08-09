@@ -97,6 +97,13 @@ if [ -z "$(iptables-save 2>/dev/null | grep unblocktroj)" ]; then
     iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocktroj dst -j REDIRECT --to-port "$TROJAN_REDIR_PORT"
 fi
 
+# Ensure no UDP redirect exists for Trojan (NAT mode doesn't proxy UDP)
+while :; do
+  rule_num=$(iptables -t nat -L PREROUTING --line-numbers | awk '/unblocktroj/ && /udp/ {print $1}' | tail -1)
+  [ -z "$rule_num" ] && break
+  iptables -t nat -D PREROUTING "$rule_num" || true
+done
+
 
 # --- Правила маркировки для VPN-клиентов Keenetic ---
 TAG="100-redirect.sh"

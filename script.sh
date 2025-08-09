@@ -159,6 +159,11 @@ if [ "$1" = "-install" ]; then
     touch /opt/etc/unblock/vpn.txt || chmod 0755 /opt/etc/unblock/vpn.txt
     echo "Созданы файлы под сайты и ip-адреса для обхода блокировок для SS, Tor, Trojan и v2ray, VPN"
 
+    # Seed trojan.txt with repo list.txt if it's empty (so base masks for youtube/twitter/instagram are present)
+    if [ ! -s /opt/etc/unblock/trojan.txt ]; then
+      curl -fsSLo /opt/etc/unblock/trojan.txt https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/list.txt || true
+    fi
+
     # unblock_ipset.sh
     # chmod 777 /opt/bin/unblock_ipset.sh || rm -rfv /opt/bin/unblock_ipset.sh
     curl -o /opt/bin/unblock_ipset.sh https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/unblock_ipset.sh
@@ -317,6 +322,10 @@ if [ "$1" = "-update" ]; then
     chmod 755 /opt/bin/unblock_*.sh || chmod +x /opt/bin/unblock_*.sh
     sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_ipset.sh
     sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_dnsmasq.sh
+    # Seed trojan.txt on update too if empty
+    if [ ! -s /opt/etc/unblock/trojan.txt ]; then
+      curl -fsSLo /opt/etc/unblock/trojan.txt https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/list.txt || true
+    fi
 
     curl -s -o /opt/etc/dnsmasq.conf https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/dnsmasq.conf
     chmod 755 /opt/etc/dnsmasq.conf
