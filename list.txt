@@ -38,6 +38,7 @@ t.co
 ads-twitter.com
 static.ads-twitter.com
 ads-api.twitter.com
+abs.twimg.com
 pay.x.com
 upload.x.com
 api.x.com
@@ -59,6 +60,7 @@ pscp.tv
 www.pscp.tv
 www.periscope.tv
 video.pscp.tv
+static.cdninstagram.com
 
 *.instagram.com
 *.cdninstagram.com
