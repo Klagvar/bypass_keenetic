@@ -177,6 +177,20 @@ if [ "$1" = "-install" ]; then
     chmod 755 /opt/bin/unblock_dnsmasq.sh || chmod +x /opt/bin/unblock_dnsmasq.sh
     sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_dnsmasq.sh || true
     /opt/bin/unblock_dnsmasq.sh
+    # Add critical base masks for Trojan (YouTube/Twitter/Instagram) if not already present
+    if ! grep -q '^ipset=/googlevideo.com/unblocktroj' /opt/etc/unblock.dnsmasq; then
+cat >>/opt/etc/unblock.dnsmasq <<'EOF'
+ipset=/googlevideo.com/unblocktroj
+server=/googlevideo.com/127.0.0.1#40500
+ipset=/ytimg.com/unblocktroj
+server=/ytimg.com/127.0.0.1#40500
+ipset=/twimg.com/unblocktroj
+server=/twimg.com/127.0.0.1#40500
+ipset=/cdninstagram.com/unblocktroj
+server=/cdninstagram.com/127.0.0.1#40500
+EOF
+    fi
+    /opt/etc/init.d/S56dnsmasq restart || true
     echo "Установлен скрипт для формирования дополнительного конфигурационного файла dnsmasq из заданного списка доменов и его запуск"
 
     # unblock_update.sh
@@ -202,6 +216,10 @@ if [ "$1" = "-install" ]; then
     sed -i "s/10810/${localportvmess}/g" /opt/etc/ndm/netfilter.d/100-redirect.sh
     sed -i "s/10829/${localporttrojan}/g" /opt/etc/ndm/netfilter.d/100-redirect.sh
     echo "Установлено перенаправление пакетов с адресатами из unblock в: Tor, Shadowsocks, VPN, Trojan, v2ray"
+    # Ensure no UDP redirect exists for Trojan right after install
+    while iptables -t nat -C PREROUTING -i br0 -p udp -m set --match-set unblocktroj dst -j REDIRECT --to-ports ${localporttrojan} 2>/dev/null; do
+      iptables -t nat -D PREROUTING -i br0 -p udp -m set --match-set unblocktroj dst -j REDIRECT --to-ports ${localporttrojan} || true
+    done
 
     # VPN script
     # chmod 777 /opt/etc/ndm/ifstatechanged.d/100-unblock-vpn.sh || rm -rfv /opt/etc/ndm/ifstatechanged.d/100-unblock-vpn.sh
@@ -250,7 +268,7 @@ if [ "$1" = "-install" ]; then
 fi
 
 if [ "$1" = "-reinstall" ]; then
-    curl -s -o /opt/root/script.sh https://raw.githubusercontent.com/ziwork/bypass_keenetic/main/script.sh
+    curl -s -o /opt/root/script.sh https://raw.githubusercontent.com/Klagvar/bypass_keenetic/main/script.sh
     chmod 755 /opt/root/script.sh || chmod +x /opt/root/script.sh
     echo "Начинаем переустановку"
     #opkg update
