@@ -95,7 +95,8 @@ fi
 if [ -z "$(iptables-save 2>/dev/null | grep unblocktroj)" ]; then
     ipset create unblocktroj hash:net -exist 2>/dev/null
     iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocktroj dst -j REDIRECT --to-port "$TROJAN_REDIR_PORT"
-    iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblocktroj dst -j REDIRECT --to-port "$TROJAN_REDIR_PORT"
+    # UDP не проксируется в режиме NAT у trojan: оставляем только TCP
+    # iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblocktroj dst -j REDIRECT --to-port "$TROJAN_REDIR_PORT"
 fi
 
 
