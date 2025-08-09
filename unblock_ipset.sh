@@ -139,14 +139,14 @@ while read -r line || [ -n "$line" ]; do
   cidr=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}' | cut_local)
 
   if [ -n "$cidr" ]; then
-    ipset -exist add unblocktroj "$cidr"
+    ipset -exist add unblocktroj_new "$cidr"
     continue
   fi
 
   range=$(echo "$line" | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut_local)
 
   if [ -n "$range" ]; then
-    ipset -exist add unblocktroj "$range"
+    ipset -exist add unblocktroj_new "$range"
     continue
   fi
 
