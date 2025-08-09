@@ -173,7 +173,116 @@ if [ "$1" = "-install" ]; then
 
     # unblock_dnsmasq.sh
     # chmod 777 /opt/bin/unblock_dnsmasq.sh || rm -rfv /opt/bin/unblock_dnsmasq.sh
-    curl -o /opt/bin/unblock_dnsmasq.sh https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/unblock.dnsmasq
+    cat <<'EOF' > /opt/bin/unblock_dnsmasq.sh
+#!/bin/sh
+
+# 2023. Keenetic DNS bot /  Проект: bypass_keenetic / Автор: tas_unn
+# GitHub: https://github.com/tas-unn/bypass_keenetic
+# Данный бот предназначен для управления обхода блокировок на роутерах Keenetic
+# Демо-бот: https://t.me/keenetic_dns_bot
+#
+# Файл: unblock.dnsmasq, Версия 2.2.0 (base-mask generation)
+# Доработал: NetworK (https://github.com/ziwork) + Klagvar fork adjustments
+
+cat /dev/null > /opt/etc/unblock.dnsmasq
+
+#=======================================================================================
+# Shadowsocks list → unblocksh
+while read -r line || [ -n "$line" ]; do
+  [ -z "$line" ] && continue
+  [ "${line#?}" = "#" ] && continue
+  echo "$line" | grep -Eq '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' && continue
+
+  host="$line"
+  if echo "$host" | grep -q '\*'; then
+    host=$(echo "$host" | sed 's/^\*\.?//')
+  fi
+  echo "ipset=/$host/unblocksh" >> /opt/etc/unblock.dnsmasq
+  echo "server=/$host/127.0.0.1#40500" >> /opt/etc/unblock.dnsmasq
+
+done < /opt/etc/unblock/shadowsocks.txt
+#=======================================================================================
+
+# Tor list → unblocktor
+while read -r line || [ -n "$line" ]; do
+  [ -z "$line" ] && continue
+  [ "${line#?}" = "#" ] && continue
+  echo "$line" | grep -Eq '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' && continue
+
+  host="$line"
+  if echo "$host" | grep -q '\*'; then
+    host=$(echo "$host" | sed 's/^\*\.?//')
+  fi
+  echo "ipset=/$host/unblocktor" >> /opt/etc/unblock.dnsmasq
+  echo "server=/$host/127.0.0.1#40500" >> /opt/etc/unblock.dnsmasq
+
+done < /opt/etc/unblock/tor.txt
+
+# Vmess list → unblockvmess
+while read -r line || [ -n "$line" ]; do
+  [ -z "$line" ] && continue
+  [ "${line#?}" = "#" ] && continue
+  echo "$line" | grep -Eq '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' && continue
+
+  host="$line"
+  if echo "$host" | grep -q '\*'; then
+    host=$(echo "$host" | sed 's/^\*\.?//')
+  fi
+  echo "ipset=/$host/unblockvmess" >> /opt/etc/unblock.dnsmasq
+  echo "server=/$host/127.0.0.1#40500" >> /opt/etc/unblock.dnsmasq
+
+done < /opt/etc/unblock/vmess.txt
+
+# Trojan list → unblocktroj (with base-mask normalization for common YT/Twitter/Instagram CDNs)
+while read -r line || [ -n "$line" ]; do
+  [ -z "$line" ] && continue
+  [ "${line#?}" = "#" ] && continue
+  echo "$line" | grep -Eq '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' && continue
+
+  host="$line"
+  if echo "$host" | grep -q '\*'; then
+    host=$(echo "$host" | sed 's/^\*\.?//')
+  fi
+  base=$(echo "$host" | awk -F. '{n=NF; if(n>=2){print $(n-1)"."$n}else{print $0}}')
+  case "$base" in
+    googlevideo.com|ytimg.com|twimg.com|cdninstagram.com)
+      host="$base" ;;
+  esac
+  echo "ipset=/$host/unblocktroj" >> /opt/etc/unblock.dnsmasq
+  echo "server=/$host/127.0.0.1#40500" >> /opt/etc/unblock.dnsmasq
+
+done < /opt/etc/unblock/trojan.txt
+
+# VPN-specific lists → unblockvpn-*
+if ls -d /opt/etc/unblock/vpn-*.txt >/dev/null 2>&1; then
+for vpn_file_names in /opt/etc/unblock/vpn-*; do
+  vpn_file_name=$(echo "$vpn_file_names" | awk -F '/' '{print $5}' | sed 's/.txt//')
+  unblockvpn=$(echo unblock"$vpn_file_name")
+  cat "$vpn_file_names" | while read -r line || [ -n "$line" ]; do
+    [ -z "$line" ] && continue
+    [ "${line#?}" = "#" ] && continue
+    echo "$line" | grep -Eq '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' && continue
+    host="$line"
+    if echo "$host" | grep -q '\*'; then
+      host=$(echo "$host" | sed 's/^\*\.?//')
+    fi
+    echo "ipset=/$host/$unblockvpn" >> /opt/etc/unblock.dnsmasq
+    echo "server=/$host/127.0.0.1#40500" >> /opt/etc/unblock.dnsmasq
+  done
+done
+fi
+
+#script0
+#script1
+#script2
+#script3
+#script4
+#script5
+#script6
+#script7
+#script8
+#script9
+EOF
     chmod 755 /opt/bin/unblock_dnsmasq.sh || chmod +x /opt/bin/unblock_dnsmasq.sh
     sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_dnsmasq.sh || true
     /opt/bin/unblock_dnsmasq.sh
@@ -207,7 +316,162 @@ EOF
 
     # 100-redirect.sh
     # chmod 777 /opt/etc/ndm/netfilter.d/100-redirect.sh || rm -rfv /opt/etc/ndm/netfilter.d/100-redirect.sh
-    curl -o /opt/etc/ndm/netfilter.d/100-redirect.sh https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/100-redirect.sh
+    cat <<'EOF' > /opt/etc/ndm/netfilter.d/100-redirect.sh
+#!/bin/sh
+
+# 2023. Keenetic DNS bot /  Проект: bypass_keenetic / Автор: tas_unn
+# GitHub: https://github.com/tas-unn/bypass_keenetic
+# Данный бот предназначен для управления обхода блокировок на роутерах Keenetic
+#
+# Файл: 100-redirect.sh, Версия 2.2.0
+# Доработал: NetworK (https://github.com/ziwork) и Gemini
+# Это исправленная версия для повышения стабильности.
+
+[ "$type" = "ip6tables" ] && exit 0
+[ "$table" != "mangle" ] && [ "$table" != "nat" ] && exit 0
+
+set -eu
+
+# --- Конфигурация портов ---
+# Порты для перенаправления трафика для разных прокси.
+# Убедитесь, что они совпадают с настройками соответствующих сервисов.
+SS_REDIR_PORT="1082"
+TOR_REDIR_PORT="9141"
+VMESS_REDIR_PORT="10810"
+TROJAN_REDIR_PORT="10829"
+# -------------------------
+
+local_ip=$(ip -4 addr show br0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+
+# -------- DNS health-check & DNAT control --------
+# Эта функция проверяет, готов ли локальный DNS-сервер (dnsmasq),
+# чтобы избежать "чёрных дыр" в интернете, если dnsmasq упал.
+dns_ready() {
+  if ! pidof dnsmasq >/dev/null 2>&1; then
+    return 1
+  fi
+  # Проверяем резолв через локальный dnsmasq
+  if command -v dig >/dev/null 2>&1; then
+    dig +time=2 +tries=1 +short google.com @127.0.0.1 -p 53 >/dev/null 2>&1 && return 0
+  fi
+  if command -v nslookup >/dev/null 2>&1; then
+    nslookup -timeout=2 google.com 127.0.0.1 >/dev/null 2>&1 && return 0
+  fi
+  return 1
+}
+
+# Функция управляет правилом DNAT для DNS-запросов.
+# Оно включается только если dns_ready, иначе — выключается для восстановления доступа в интернет.
+ensure_dns_dnat() {
+  if dns_ready; then
+    for protocol in udp tcp; do
+      if ! iptables-save -t nat | grep -q -- "-A PREROUTING -i br0 -p $protocol -m $protocol --dport 53 -j DNAT --to-destination $local_ip"; then
+        iptables -I PREROUTING -w -t nat -i br0 -p "$protocol" --dport 53 -j DNAT --to "$local_ip"
+      fi
+    done
+  else
+    # DNS не готов → удаляем правила, чтобы не блокировать интернет.
+    for protocol in udp tcp; do
+      while iptables -C PREROUTING -t nat -i br0 -p "$protocol" --dport 53 -j DNAT --to "$local_ip" >/dev/null 2>&1; do
+        iptables -D PREROUTING -w -t nat -i br0 -p "$protocol" --dport 53 -j DNAT --to "$local_ip" || true
+      done
+      # Также удаляем более общее правило, если оно есть
+      while iptables -C PREROUTING -t nat -p "$protocol" --dport 53 -j DNAT --to "$local_ip" >/dev/null 2>&1; do
+        iptables -D PREROUTING -w -t nat -p "$protocol" --dport 53 -j DNAT --to "$local_ip" || true
+      done
+    done
+  fi
+}
+
+# Применяем проверку DNS при каждом запуске скрипта
+ensure_dns_dnat
+
+
+# --- Правила перенаправления для прокси ---
+
+# Shadowsocks
+if [ -z "$(iptables-save 2>/dev/null | grep unblocksh)" ]; then
+    ipset create unblocksh hash:net -exist 2>/dev/null
+    iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocksh dst -j REDIRECT --to-port "$SS_REDIR_PORT"
+    iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblocksh dst -j REDIRECT --to-port "$SS_REDIR_PORT"
+fi
+
+# Tor
+if [ -z "$(iptables-save 2>/dev/null | grep unblocktor)" ]; then
+    ipset create unblocktor hash:net -exist 2>/dev/null
+    iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocktor dst -j REDIRECT --to-port "$TOR_REDIR_PORT"
+    iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblocktor dst -j REDIRECT --to-port "$TOR_REDIR_PORT"
+fi
+
+# Vmess
+if [ -z "$(iptables-save 2>/dev/null | grep unblockvmess)" ]; then
+    ipset create unblockvmess hash:net -exist 2>/dev/null
+    iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblockvmess dst -j REDIRECT --to-port "$VMESS_REDIR_PORT"
+    iptables -I PREROUTING -w -t nat -i br0 -p udp -m set --match-set unblockvmess dst -j REDIRECT --to-port "$VMESS_REDIR_PORT"
+fi
+
+# Trojan
+if [ -z "$(iptables-save 2>/dev/null | grep unblocktroj)" ]; then
+    ipset create unblocktroj hash:net -exist 2>/dev/null
+    iptables -I PREROUTING -w -t nat -i br0 -p tcp -m set --match-set unblocktroj dst -j REDIRECT --to-port "$TROJAN_REDIR_PORT"
+fi
+
+# Ensure no UDP redirect exists for Trojan (NAT mode doesn't proxy UDP)
+while :; do
+  rule_num=$(iptables -t nat -L PREROUTING --line-numbers | awk '/unblocktroj/ && /udp/ {print $1}' | tail -1)
+  [ -z "$rule_num" ] && break
+  iptables -t nat -D PREROUTING "$rule_num" || true
+done
+
+
+# --- Правила маркировки для VPN-клиентов Keenetic ---
+TAG="100-redirect.sh"
+if ls -d /opt/etc/unblock/vpn-*.txt >/dev/null 2>&1; then
+    for vpn_file_name in /opt/etc/unblock/vpn*; do
+        vpn_unblock_name=$(echo "$vpn_file_name" | awk -F '/' '{print $5}' | sed 's/.txt//')
+        unblockvpn=$(echo "unblock$vpn_unblock_name")
+        vpn_type=$(echo "$unblockvpn" | sed 's/-/ /g' | awk '{print $NF}')
+        vpn_link_up=$(curl -s "localhost:79/rci/show/interface/$vpn_type/link" | tr -d '"')
+
+        if [ "$vpn_link_up" = "up" ]; then
+            vpn_type_lower=$(echo "$vpn_type" | tr '[:upper:]' '[:lower:]')
+            get_vpn_fwmark_id=$(grep "$vpn_type_lower" /opt/etc/iproute2/rt_tables | awk '{print $1}')
+
+            if [ -n "${get_vpn_fwmark_id}" ]; then
+                vpn_table_id=$get_vpn_fwmark_id
+            else
+                continue
+            fi
+            vpn_mark_id=$(printf "0x%x" "$vpn_table_id")
+
+            if ! iptables-save -t mangle | grep -q "$unblockvpn"; then
+                info_vpn_rule="ipset: $unblockvpn, mark_id: $vpn_mark_id"
+                logger -t "$TAG" "$info_vpn_rule"
+
+                ipset create "$unblockvpn" hash:net -exist 2>/dev/null
+
+                fastnat=$(curl -s "localhost:79/rci/show/version" | grep ppe)
+                software=$(curl -s "localhost:79/rci/show/rc/ppe" | grep software -C1 | head -1 | awk '{print $2}' | tr -d ',')
+                hardware=$(curl -s "localhost:79/rci/show/rc/ppe" | grep hardware -C1 | head -1 | awk '{print $2}' | tr -d ',')
+
+                if [ -z "$fastnat" ] && [ "$software" = "false" ] && [ "$hardware" = "false" ]; then
+                    logger -t "$TAG" "VPN: fastnat/swnat/hwnat ВЫКЛЮЧЕНЫ, применяем MARK"
+                    # С отключенными ускорителями
+                    iptables -A PREROUTING -w -t mangle -i br0 -p tcp -m set --match-set "$unblockvpn" dst -j MARK --set-mark "$vpn_mark_id"
+                    iptables -A PREROUTING -w -t mangle -i br0 -p udp -m set --match-set "$unblockvpn" dst -j MARK --set-mark "$vpn_mark_id"
+                else
+                    logger -t "$TAG" "VPN: fastnat/swnat/hwnat ВКЛЮЧЕНЫ, применяем CONNMARK"
+                    # С включенными ускорителями
+                    iptables -A PREROUTING -w -t mangle -i br0 -m conntrack --ctstate NEW -m set --match-set "$unblockvpn" dst -j CONNMARK --set-mark "$vpn_mark_id"
+                    iptables -A PREROUTING -w -t mangle -i br0 -j CONNMARK --restore-mark
+                fi
+            fi # iptables check
+        fi # link check
+    done
+fi # file check
+
+exit 0
+EOF
     chmod 755 /opt/etc/ndm/netfilter.d/100-redirect.sh || chmod +x /opt/etc/ndm/netfilter.d/100-redirect.sh
     sed -i "s/hash:net/${set_type}/g" /opt/etc/ndm/netfilter.d/100-redirect.sh
     sed -i "s/192.168.1.1/${lanip}/g" /opt/etc/ndm/netfilter.d/100-redirect.sh
@@ -240,7 +504,84 @@ EOF
     # dnsmasq.conf
     #rm -rf /opt/etc/dnsmasq.conf
     chmod 777 /opt/etc/dnsmasq.conf || rm -rfv /opt/etc/dnsmasq.conf
-    curl -o /opt/etc/dnsmasq.conf https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/dnsmasq.conf
+    cat <<'EOF' > /opt/etc/dnsmasq.conf
+user=nobody
+#pid-file=/var/run/opt-dnsmasq.pid
+interface=br0
+interface=br1
+interface=lo
+
+min-port=4096       # Specify lowest port available for DNS query transmission
+cache-size=1536     # Specify the size of the cache in entries
+
+#listen-address=::1
+#listen-address=fe80::52ff:20ff:fe0f:cabe
+listen-address=127.0.0.1
+listen-address=192.168.1.1
+
+#bind-dynamic
+#except-interface=lo
+
+bogus-priv          # Fake reverse lookups for RFC1918 private address ranges
+no-negcache         # Do NOT cache failed search results
+no-resolv           # Do NOT read resolv.conf
+no-poll             # Do NOT poll resolv.conf file, reload only on SIGHUP
+clear-on-reload     # Clear DNS cache when reloading dnsmasq
+expand-hosts        # Expand simple names in /etc/hosts with domain-suffix
+localise-queries    # Return answers to DNS queries from /etc/hosts and --interface-name and --dynamic-host which depend on the interface over which the query was received
+domain-needed       # Tells dnsmasq to never forward A or AAAA queries for plain names, without dots or domain parts, to upstream nameservers
+#filter-aaaa         # Prefer IPv4 by filtering AAAA (enable if your dnsmasq supports this option)
+log-async           # Enable async. logging; optionally set queue length
+stop-dns-rebind     # Reject (and log) addresses from upstream nameservers which are in the private ranges
+rebind-localhost-ok # Exempt 127.0.0.0/8 and ::1 from rebinding checks
+#rebind-domain-ok=/lan/onion/i2p/
+rebind-domain-ok=/lan/local/onion/
+
+# DNS over TLS-HTTPS /tmp/ndnproxymain.stat
+# Порты DoT/DoH будут подставлены из script.sh при установке/обновлении
+server=127.0.0.1#40500
+server=127.0.0.1#40508
+#server=127.0.0.1#40501
+#server=127.0.0.1#40509
+
+# Tor onion
+#ipset=/onion/unblock4-tor,unblock6-tor
+server=/onion/127.0.0.1#9053
+server=/onion/::1#9053
+ipset=/onion/unblocktor
+
+# I2P
+#address=/i2p/172.17.17.17
+
+# SRV-hosts
+#srv-host=_vlmcs._tcp.lan,rpi4.lan,1688,0,100 # KMS
+#srv-host=_ntp._udp.lan,rpi4.lan,123,0,100    # NTP
+
+#srv-host=_vlmcs._tcp.local,rpi4.local,1688,0,100 # KMS
+#srv-host=_ntp._udp.local,rpi4.local,123,0,100    # NTP
+
+# Samsung Tizen: Ott-Play over DNS
+#server=/oll.tv/51.38.147.71
+
+# OpenNIC DNS
+# https://servers.opennicproject.org/
+#server=/lib/2a05:dfc7:5::53
+#server=/lib/185.121.177.177
+#server=/lib/2a05:dfc7:5::5353
+#server=/lib/169.239.202.202
+
+conf-file=/opt/etc/unblock.dnsmasq
+#conf-file=/opt/etc/unblock-tor.dnsmasq
+#conf-file=/opt/etc/unblock-vpn.dnsmasq
+
+# Локальный домен для автоматической подстановки в случае неполного доменного имени
+domain=local,192.168.1.0/24
+#address=/localhost/127.0.0.1/::1/
+#address=/router.local/192.168.1.1
+
+# Не использовать /etc/hosts
+#no-hosts
+EOF
     chmod 755 /opt/etc/dnsmasq.conf
     sed -i "s/192.168.1.1/${lanip}/g" /opt/etc/dnsmasq.conf
     sed -i "s/40500/${dnsovertlsport}/g" /opt/etc/dnsmasq.conf || true
