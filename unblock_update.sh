@@ -47,6 +47,19 @@ if ls -d /opt/etc/unblock/vpn-*.txt >/dev/null 2>&1; then
 fi
 
 /opt/bin/unblock_dnsmasq.sh
+# Ensure critical base masks for YT/Twitter/Instagram exist
+if ! grep -q '^ipset=/googlevideo.com/unblocktroj' /opt/etc/unblock.dnsmasq 2>/dev/null; then
+cat >>/opt/etc/unblock.dnsmasq <<'EOF'
+ipset=/googlevideo.com/unblocktroj
+server=/googlevideo.com/127.0.0.1#40500
+ipset=/ytimg.com/unblocktroj
+server=/ytimg.com/127.0.0.1#40500
+ipset=/twimg.com/unblocktroj
+server=/twimg.com/127.0.0.1#40500
+ipset=/cdninstagram.com/unblocktroj
+server=/cdninstagram.com/127.0.0.1#40500
+EOF
+fi
 /opt/etc/init.d/S56dnsmasq restart
 
 # Пересобираем наборы атомарно из файлов доменов/адресов через резолв в отдельном процессе

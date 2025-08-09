@@ -57,7 +57,7 @@ while read -r line || [ -n "$line" ]; do
 
 done < /opt/etc/unblock/vmess.txt
 
-# Trojan list → unblocktroj
+# Trojan list → unblocktroj (with base-mask normalization for common YT/Twitter/Instagram CDNs)
 while read -r line || [ -n "$line" ]; do
   [ -z "$line" ] && continue
   [ "${line#?}" = "#" ] && continue
@@ -67,6 +67,11 @@ while read -r line || [ -n "$line" ]; do
   if echo "$host" | grep -q '\*'; then
     host=$(echo "$host" | sed 's/^\*\.?//')
   fi
+  base=$(echo "$host" | awk -F. '{n=NF; if(n>=2){print $(n-1)"."$n}else{print $0}}')
+  case "$base" in
+    googlevideo.com|ytimg.com|twimg.com|cdninstagram.com)
+      host="$base" ;;
+  esac
   echo "ipset=/$host/unblocktroj" >> /opt/etc/unblock.dnsmasq
   echo "server=/$host/127.0.0.1#40500" >> /opt/etc/unblock.dnsmasq
 
