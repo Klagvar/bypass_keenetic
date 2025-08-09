@@ -340,6 +340,21 @@ if [ "$1" = "-update" ]; then
     chmod 755 /opt/bin/unblock_*.sh || chmod +x /opt/bin/unblock_*.sh
     sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_ipset.sh
     sed -i "s/40500/${dnsovertlsport}/g" /opt/bin/unblock_dnsmasq.sh
+    # Rebuild dnsmasq rules and ensure base masks exist for key CDNs (YT/Twitter/Instagram)
+    /opt/bin/unblock_dnsmasq.sh
+    if ! grep -q '^ipset=/googlevideo.com/unblocktroj' /opt/etc/unblock.dnsmasq; then
+cat >>/opt/etc/unblock.dnsmasq <<'EOF'
+ipset=/googlevideo.com/unblocktroj
+server=/googlevideo.com/127.0.0.1#40500
+ipset=/ytimg.com/unblocktroj
+server=/ytimg.com/127.0.0.1#40500
+ipset=/twimg.com/unblocktroj
+server=/twimg.com/127.0.0.1#40500
+ipset=/cdninstagram.com/unblocktroj
+server=/cdninstagram.com/127.0.0.1#40500
+EOF
+    fi
+    /opt/etc/init.d/S56dnsmasq restart || true
     # Seed trojan.txt on update too if empty
     if [ ! -s /opt/etc/unblock/trojan.txt ]; then
       curl -fsSLo /opt/etc/unblock/trojan.txt https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/list.txt || true
