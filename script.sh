@@ -228,7 +228,7 @@ if [ "$1" = "-install" ]; then
     #rm -rf /opt/etc/crontab
     chmod 777 /opt/etc/crontab || rm -Rfv /opt/etc/crontab
     curl -o /opt/etc/crontab https://raw.githubusercontent.com/${repo}/bypass_keenetic/main/crontab
-    chmod 755 /opt/etc/crontab
+    chmod 600 /opt/etc/crontab
     echo "Установлено добавление задачи в cron для периодического обновления содержимого множества"
     /opt/bin/unblock_update.sh
     echo "Установлены все изначальные скрипты и скрипты разблокировок, выполнена основная настройка бота"
